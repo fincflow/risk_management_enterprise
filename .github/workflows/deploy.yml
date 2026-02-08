@@ -17,23 +17,25 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # 将通行证传给服务器环境
+          envs: GITHUB_TOKEN
           script: |
-            # 1. 确保服务器上有存放项目的文件夹
-            sudo mkdir -p /home/fincflow
-            sudo chown root:root /home/fincflow
+            # 1. 确保目录存在
+            mkdir -p /home/fincflow
             cd /home/fincflow
 
-            # 2. 核心逻辑：如果文件夹里没有 .git，就执行 clone；否则执行 pull
+            # 2. 解决权限问题的核心：使用 Token 克隆
             if [ ! -d "risk_management_enterprise/.git" ]; then
-              echo "Repo not found, cloning..."
-              git clone https://github.com/fincflow/risk_management_enterprise.git
+              echo "Repo not found, cloning with token..."
+              git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git
             fi
 
             cd risk_management_enterprise
-            git pull origin main
+            # 同步最新代码
+            git pull https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git main
             
-            # 3. 安装环境并启动服务
-            sudo apt-get update && sudo apt-get install -y python3-pip
+            # 3. 安装环境并启动服务（root 用户不需要 sudo）
+            apt-get update && apt-get install -y python3-pip
             pip3 install -r requirements.txt
             pkill uvicorn || true
             nohup uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
