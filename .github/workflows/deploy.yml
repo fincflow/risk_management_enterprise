@@ -17,6 +17,8 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # 增加超时时间，防止网络波动导致的误杀
+          timeout: 30m
           script: |
             # 1. 准备目录
             mkdir -p /home/fincflow/app
@@ -27,20 +29,17 @@ jobs:
             git clone https://github.com/fincflow/risk_management_enterprise.git
             cd risk_management_enterprise
             
-            # 3. 安装环境（省内存模式）
-            echo "Installing dependencies..."
+            # 3. 【核心修改】使用 apt 安装系统级包（快、稳、不报错）
+            echo "Installing dependencies via apt..."
             sudo apt-get update
-            # 确保 pip 存在
-            sudo apt-get install -y python3-pip
-            
-            # 【核心修复】加上 --no-cache-dir 防止内存溢出
-            # 加上 --break-system-packages 允许在 Ubuntu 24.04 上直接安装
-            pip3 install -r requirements.txt --break-system-packages --no-cache-dir
+            # 直接安装 Ubuntu 官方编译好的 FastAPI 和 Uvicorn
+            # 这样完全避开了 pip 与系统的权限冲突
+            sudo apt-get install -y python3-fastapi python3-uvicorn
             
             # 4. 启动服务
             echo "Starting service..."
             pkill -f uvicorn || true
-            # 使用 nohup 放入后台，并确保输出重定向，防止 SSH 卡死
+            # 使用 nohup 放入后台
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
             
             echo "FincFlow Deploy Success!"
