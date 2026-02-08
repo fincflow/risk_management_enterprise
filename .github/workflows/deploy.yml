@@ -17,25 +17,23 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # 将通行证传给服务器环境
-          envs: GITHUB_TOKEN
           script: |
-            # 1. 确保目录存在
-            mkdir -p /home/fincflow
-            cd /home/fincflow
+            # 1. 彻底清理旧房间，防止权限冲突
+            rm -rf /root/fincflow_temp
+            mkdir -p /root/fincflow_temp
+            cd /root/fincflow_temp
 
-            # 2. 解决权限问题的核心：使用 Token 克隆
-            if [ ! -d "risk_management_enterprise/.git" ]; then
-              echo "Repo not found, cloning with token..."
-              git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git
-            fi
-
-            cd risk_management_enterprise
-            # 同步最新代码
-            git pull https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git main
+            # 2. 使用临时通行证（Token）克隆最新代码
+            # 注意：这里的 GITHUB_TOKEN 是 GitHub 自动生成的，你不需要手动设置
+            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git
             
-            # 3. 安装环境并启动服务（root 用户不需要 sudo）
+            cd risk_management_enterprise
+
+            # 3. 安装环境（你的 Mac 是 Python 3.10.17，CVM 也会同步安装）
             apt-get update && apt-get install -y python3-pip
             pip3 install -r requirements.txt
+
+            # 4. 暴力重启服务
             pkill uvicorn || true
             nohup uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
+            echo "FincFlow has landed successfully!"
