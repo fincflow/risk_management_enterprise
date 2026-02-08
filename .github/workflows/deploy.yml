@@ -18,23 +18,24 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # 1. 准备目录
+            # 1. 强制进入根目录并确保目录存在
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
 
-            # 2. 暴力重装（最稳的方法）
+            # 2. 暴力清理旧代码，确保每次都是最新的
             rm -rf risk_management_enterprise
-            # 使用公共仓库链接或Token链接（因为你已经配了SSH，这里其实可以直接用简单的HTTPS）
             git clone https://github.com/fincflow/risk_management_enterprise.git
-
-            # 3. 安装依赖（直接装在全局，不搞虚拟环境那些花里胡哨的）
+            
             cd risk_management_enterprise
+            
+            # 3. 安装环境（针对 Ubuntu 24.04 的核心修复）
             sudo apt-get update
             sudo apt-get install -y python3-pip
-            pip3 install -r requirements.txt
+            # 使用 --break-system-packages 强制安装，这是开发环境最快的方法
+            pip3 install -r requirements.txt --break-system-packages
             
-            # 4. 启动服务
+            # 4. 彻底重启服务
             pkill -f uvicorn || true
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
             
-            echo "Deploy Success"
+            echo "FincFlow Cloud is officially online!"
