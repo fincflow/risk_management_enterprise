@@ -18,13 +18,22 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/fincflow/fincflow-backend
+            # 1. 确保服务器上有存放项目的文件夹
+            sudo mkdir -p /home/fincflow
+            sudo chown root:root /home/fincflow
+            cd /home/fincflow
+
+            # 2. 核心逻辑：如果文件夹里没有 .git，就执行 clone；否则执行 pull
+            if [ ! -d "risk_management_enterprise/.git" ]; then
+              echo "Repo not found, cloning..."
+              git clone https://github.com/fincflow/risk_management_enterprise.git
+            fi
+
+            cd risk_management_enterprise
             git pull origin main
-            # 确保云端环境安装了 Python 基础包
+            
+            # 3. 安装环境并启动服务
             sudo apt-get update && sudo apt-get install -y python3-pip
-            # 安装 FincFlow 依赖
             pip3 install -r requirements.txt
-            # 停止正在运行的旧服务，并启动新服务
-            # 使用 nohup 保证 GitHub Actions 断开连接后，程序依然在云端 24 小时运行
             pkill uvicorn || true
             nohup uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
