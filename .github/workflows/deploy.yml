@@ -8,38 +8,35 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
       - name: SSH and Deploy
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # 增加超时时间，防止网络波动导致的误杀
-          timeout: 30m
           script: |
-            # 1. 准备目录
+            # 1. 环境变量三重禁言：禁止任何交互提示
+            export DEBIAN_FRONTEND=noninteractive
+            export NEEDRESTART_MODE=a
+            
+            # 2. 彻底移除会乱动网络服务的 needrestart 工具
+            # 只有把它删了，你的 SSH 连接才不会被中途掐断
+            sudo apt-get remove -y needrestart || true
+
+            # 3. 准备目录与克隆
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
-
-            # 2. 重新下载代码
             rm -rf risk_management_enterprise
             git clone https://github.com/fincflow/risk_management_enterprise.git
             cd risk_management_enterprise
             
-            # 3. 【核心修改】使用 apt 安装系统级包（快、稳、不报错）
-            echo "Installing dependencies via apt..."
+            # 4. 强制无干扰模式安装
+            # 使用 -y 自动确认，-o 选项强制保留旧配置，不弹窗询问
             sudo apt-get update
-            # 直接安装 Ubuntu 官方编译好的 FastAPI 和 Uvicorn
-            # 这样完全避开了 pip 与系统的权限冲突
-            sudo apt-get install -y python3-fastapi python3-uvicorn
+            sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" python3-fastapi python3-uvicorn
             
-            # 4. 启动服务
-            echo "Starting service..."
+            # 5. 启动服务
             pkill -f uvicorn || true
-            # 使用 nohup 放入后台
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
             
-            echo "FincFlow Deploy Success!"
+            echo "DEPLOY_COMPLETE"
