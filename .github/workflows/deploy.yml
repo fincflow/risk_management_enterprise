@@ -9,38 +9,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: SSH and Deploy
-        uses: appleboy/ssh-action@master
-        env:
-          # 1. 这里我们把 Token 存进一个临时变量，编辑器就不会报错了
-          MY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # 2. 告诉脚本我们要用这个变量
-          envs: MY_TOKEN
+          port: ${{ secrets.REMOTE_PORT || 22 }}
           script: |
             # 准备工作目录
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
 
-            # 清理旧代码
-            rm -rf risk_management_enterprise
-            
-            # 3. 使用 $MY_TOKEN 变量来克隆，写法更干净，不会有波浪线
-            git clone https://x-access-token:$MY_TOKEN@github.com/fincflow/risk_management_enterprise.git
+            # 如果目录已存在，先拉取最新代码，否则克隆
+            if [ -d "risk_management_enterprise" ]; then
+              cd risk_management_enterprise
+              git fetch origin
+              git reset --hard origin/main
+              git clean -fd
+            else
+              git clone https://github.com/fincflow/risk_management_enterprise.git
+              cd risk_management_enterprise
+            fi
 
-            # 安装依赖
-            cd risk_management_enterprise
-            sudo apt-get update
-            sudo apt-get install -y python3-pip
-            pip3 install -r requirements.txt
+            # 安装/更新依赖
+            sudo apt-get update -qq
+            sudo apt-get install -y python3-pip python3-venv > /dev/null 2>&1
             
-            # 启动服务
-            pkill -f uvicorn || true
-            nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
+            # 使用虚拟环境（推荐）
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+            pip install --upgrade pip -q
+            pip install -r requirements.txt -q
             
-            echo "Deploy Success"
+            # 停止旧服务
+            pkill -f "uvicorn main:app" || true
+            sleep 2
+            
+            # 启动新服务
+            nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > /home/fincflow/app/log.txt 2>&1 &
+            
+            # 等待服务启动
+            sleep 3
+            
+            # 验证服务是否启动
+            if pgrep -f "uvicorn main:app" > /dev/null; then
+              echo "✅ Deploy Success! Service is running."
+            else
+              echo "❌ Deploy Failed! Service did not start."
+              exit 1
+            fi
