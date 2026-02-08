@@ -13,33 +13,27 @@ jobs:
 
       - name: SSH and Deploy
         uses: appleboy/ssh-action@master
-        env:
-          # 1. 这里我们把 Token 存进一个临时变量，编辑器就不会报错了
-          MY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # 2. 告诉脚本我们要用这个变量
-          envs: MY_TOKEN
           script: |
-            # 准备工作目录
+            # 1. 准备目录
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
 
-            # 清理旧代码
+            # 2. 暴力重装（最稳的方法）
             rm -rf risk_management_enterprise
-            
-            # 3. 使用 $MY_TOKEN 变量来克隆，写法更干净，不会有波浪线
-            git clone https://x-access-token:$MY_TOKEN@github.com/fincflow/risk_management_enterprise.git
+            # 使用公共仓库链接或Token链接（因为你已经配了SSH，这里其实可以直接用简单的HTTPS）
+            git clone https://github.com/fincflow/risk_management_enterprise.git
 
-            # 安装依赖
+            # 3. 安装依赖（直接装在全局，不搞虚拟环境那些花里胡哨的）
             cd risk_management_enterprise
             sudo apt-get update
             sudo apt-get install -y python3-pip
             pip3 install -r requirements.txt
             
-            # 启动服务
+            # 4. 启动服务
             pkill -f uvicorn || true
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
             
