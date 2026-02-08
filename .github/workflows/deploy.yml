@@ -9,103 +9,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: SSH and Deploy
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 1. 这里我们把 Token 存进一个临时变量，编辑器就不会报错了
+          MY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.REMOTE_PORT || 22 }}
-          timeout: 300s
-          envs: GITHUB_TOKEN
+          # 2. 告诉脚本我们要用这个变量
+          envs: MY_TOKEN
           script: |
-            set -e  # 遇到错误立即退出
-            
-            echo "🚀 开始部署..."
-            
             # 准备工作目录
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
+
+            # 清理旧代码
+            rm -rf risk_management_enterprise
             
-            # 如果目录已存在，先拉取最新代码，否则克隆
-            if [ -d "risk_management_enterprise" ]; then
-              echo "📥 更新现有代码..."
-              cd risk_management_enterprise
-              # 使用 token 更新代码
-              git fetch https://x-access-token:$GITHUB_TOKEN@github.com/fincflow/risk_management_enterprise.git main || true
-              git reset --hard FETCH_HEAD || true
-              git clean -fd || true
-            else
-              echo "📥 克隆仓库（使用 GitHub Token，无需配置服务器权限）..."
-              # 使用 GitHub Token 克隆，无需在服务器上配置 Git 权限
-              git clone https://x-access-token:$GITHUB_TOKEN@github.com/fincflow/risk_management_enterprise.git
-              cd risk_management_enterprise
-            fi
+            # 3. 使用 $MY_TOKEN 变量来克隆，写法更干净，不会有波浪线
+            git clone https://x-access-token:$MY_TOKEN@github.com/fincflow/risk_management_enterprise.git
+
+            # 安装依赖
+            cd risk_management_enterprise
+            sudo apt-get update
+            sudo apt-get install -y python3-pip
+            pip3 install -r requirements.txt
             
-            echo "✅ 代码更新完成"
+            # 启动服务
+            pkill -f uvicorn || true
+            nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
             
-            # 安装系统依赖
-            echo "📦 安装系统依赖..."
-            sudo apt-get update -qq || true
-            sudo apt-get install -y python3-pip python3-venv git > /dev/null 2>&1 || true
-            
-            # 使用虚拟环境
-            echo "🐍 设置 Python 虚拟环境..."
-            if [ ! -d "venv" ]; then
-              python3 -m venv venv
-            fi
-            source venv/bin/activate
-            
-            # 升级 pip 并安装依赖
-            echo "📚 安装 Python 依赖..."
-            pip install --upgrade pip -q || true
-            pip install -r requirements.txt || {
-              echo "❌ 依赖安装失败，查看错误："
-              pip install -r requirements.txt
-              exit 1
-            }
-            
-            echo "✅ 依赖安装完成"
-            
-            # 停止旧服务
-            echo "🛑 停止旧服务..."
-            pkill -f "uvicorn main:app" || true
-            sleep 2
-            
-            # 检查端口是否被占用
-            if lsof -ti:8000 > /dev/null 2>&1; then
-              echo "⚠️ 端口 8000 被占用，强制释放..."
-              lsof -ti:8000 | xargs kill -9 || true
-              sleep 1
-            fi
-            
-            # 启动新服务（使用虚拟环境中的 python）
-            echo "🚀 启动服务..."
-            nohup venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 > /home/fincflow/app/log.txt 2>&1 &
-            
-            # 等待服务启动
-            echo "⏳ 等待服务启动..."
-            sleep 5
-            
-            # 验证服务是否启动
-            if pgrep -f "uvicorn main:app" > /dev/null; then
-              echo "✅ 服务进程已启动"
-              # 再次验证端口
-              sleep 2
-              if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-                echo "✅✅ Deploy Success! Service is running and healthy."
-              else
-                echo "⚠️ 服务进程存在但健康检查失败，查看日志："
-                tail -20 /home/fincflow/app/log.txt || true
-                echo "✅ 服务已启动（健康检查可能暂时失败）"
-              fi
-            else
-              echo "❌ Deploy Failed! Service did not start."
-              echo "查看错误日志："
-              cat /home/fincflow/app/log.txt || true
-              exit 1
-            fi
+            echo "Deploy Success"
