@@ -18,32 +18,27 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: MY_TOKEN
           script: |
-            # 1. 环境变量防弹窗
+            # 1. 强制禁言
             export DEBIAN_FRONTEND=noninteractive
             
-            # ==============================
-            # 2. 【核心修复】先杀掉捣乱者 needrestart
-            # 上一次报错就是因为这行代码我漏写了！
-            # 只有删了它，安装软件后才不会断网
-            sudo apt-get remove -y needrestart || true
-            # ==============================
-
-            # 3. 准备目录
+            # 2. 准备目录 (不删 needrestart 了，因为你已经删过了，跳过这步能省时间)
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
             
-            # 4. 使用 Token 克隆 (解决私有仓库权限问题)
+            # 3. 强制拉取代码
             rm -rf risk_management_enterprise
             git clone https://x-access-token:$MY_TOKEN@github.com/fincflow/risk_management_enterprise.git
             cd risk_management_enterprise
             
-            # 5. 极速安装 (现在 needrestart 真的没了)
-            sudo apt-get update
+            # 4. 只装必要的包，不运行 update (节省时间防止超时)
+            # 既然 Run #18 显示已经装好了，这一步其实秒过
             sudo apt-get install -y python3-fastapi python3-uvicorn
             
-            # 6. 启动服务
+            # 5. 【终极修复】后台启动并脱离控制台
+            # 加上 disown 是为了防止 SSH 断开时把你的程序顺带掐死
             pkill -f uvicorn || true
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
+            disown
             
-            # 7. 打印胜利标志
-            echo "DEPLOY_SUCCESSFUL"
+            echo "DEPLOY_FINISH_SUCCESS"
+# version: 1.0.1
