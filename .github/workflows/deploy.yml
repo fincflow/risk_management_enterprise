@@ -18,22 +18,26 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # 1. 彻底清理旧房间，防止权限冲突
-            rm -rf /root/fincflow_temp
-            mkdir -p /root/fincflow_temp
-            cd /root/fincflow_temp
+            # 1. 准备工作目录
+            mkdir -p /home/fincflow/app
+            cd /home/fincflow/app
 
-            # 2. 使用临时通行证（Token）克隆最新代码
-            # 注意：这里的 GITHUB_TOKEN 是 GitHub 自动生成的，你不需要手动设置
-            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git
+            # 2. 智能同步代码（解决私有仓库权限问题）
+            # 如果 .git 文件夹存在，说明已经下载过，直接 pull 更新
+            if [ -d ".git" ]; then
+              echo "Updating existing code..."
+              git pull https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git main
+            else
+              # 如果是第一次，就克隆（注意最后的 . 代表克隆到当前目录，不创建子文件夹）
+              echo "Cloning fresh code..."
+              git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git .
+            fi
             
-            cd risk_management_enterprise
-
-            # 3. 安装环境（你的 Mac 是 Python 3.10.17，CVM 也会同步安装）
-            apt-get update && apt-get install -y python3-pip
+            # 3. 安装依赖 & 启动服务
+            sudo apt-get update && sudo apt-get install -y python3-pip
             pip3 install -r requirements.txt
-
-            # 4. 暴力重启服务
+            
+            # 重启服务
             pkill uvicorn || true
             nohup uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
-            echo "FincFlow has landed successfully!"
+            echo "FincFlow deployment finished!"
