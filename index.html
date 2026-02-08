@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎来到 FincFlow - 您的风险管理专家</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container" id="container">
+        <div class="form-container sign-up-container">
+            <form action="#">
+                <h1>创建账号</h1>
+                <div class="social-container">
+                    <a href="#" class="social-wechat">微信一键注册</a>
+                </div>
+                <span>或使用手机号注册</span>
+                <input type="tel" placeholder="手机号码" />
+                <div class="verify-code">
+                    <input type="text" placeholder="验证码" />
+                    <button type="button">获取验证码</button>
+                </div>
+                <input type="password" placeholder="设置密码" />
+                <button class="action-btn">立即开启 FincFlow</button>
+            </form>
+        </div>
+
+        <div class="overlay-container">
+            <div class="overlay">
+                <div class="overlay-panel overlay-left">
+                    <h1>已有账号？</h1>
+                    <p>欢迎回到 FincFlow，请登录以继续</p>
+                    <button class="ghost" id="signIn">立即登录</button>
+                </div>
+                <div class="overlay-panel overlay-right">
+                    <h1>凡客葫芦 · FincFlow</h1>
+                    <p>专业的风险管理顾问 SaaS</p>
+                    <button class="ghost" id="signUp">免费注册</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
