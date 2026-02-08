@@ -1,4 +1,4 @@
-name: Deploy FincFlow to Tencent Cloud
+name: Deploy FincFlow
 
 on:
   push:
@@ -18,26 +18,22 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # 1. 准备工作目录
+            # 1. 强制进入根目录并创建项目文件夹
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
 
-            # 2. 智能同步代码（解决私有仓库权限问题）
-            # 如果 .git 文件夹存在，说明已经下载过，直接 pull 更新
-            if [ -d ".git" ]; then
-              echo "Updating existing code..."
-              git pull https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git main
-            else
-              # 如果是第一次，就克隆（注意最后的 . 代表克隆到当前目录，不创建子文件夹）
-              echo "Cloning fresh code..."
-              git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git .
-            fi
+            # 2. 暴力重装逻辑：如果有旧代码先删掉，确保没有任何 git 冲突
+            rm -rf risk_management_enterprise
             
-            # 3. 安装依赖 & 启动服务
+            # 3. 使用 Token 重新克隆（解决私有仓库权限问题）
+            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/fincflow/risk_management_enterprise.git
+            
+            # 4. 进入项目目录并安装环境
+            cd risk_management_enterprise
             sudo apt-get update && sudo apt-get install -y python3-pip
             pip3 install -r requirements.txt
             
-            # 重启服务
+            # 5. 重启服务
             pkill uvicorn || true
             nohup uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
-            echo "FincFlow deployment finished!"
+            echo "FincFlow deployment complete!"
