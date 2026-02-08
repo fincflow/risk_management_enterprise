@@ -10,33 +10,36 @@ jobs:
     steps:
       - name: SSH and Deploy
         uses: appleboy/ssh-action@master
+        # 1. 这里非常关键！必须告诉服务器你的 Token 是什么
+        env:
+          MY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # 2. 声明我们要把这个变量传给服务器
+          envs: MY_TOKEN
           script: |
-            # 1. 环境变量三重禁言：禁止任何交互提示
+            # 环境变量禁言
             export DEBIAN_FRONTEND=noninteractive
-            export NEEDRESTART_MODE=a
             
-            # 2. 彻底移除会乱动网络服务的 needrestart 工具
-            # 只有把它删了，你的 SSH 连接才不会被中途掐断
-            sudo apt-get remove -y needrestart || true
-
-            # 3. 准备目录与克隆
+            # 3. 准备目录
             mkdir -p /home/fincflow/app
             cd /home/fincflow/app
+            
+            # 4. 暴力清理并重新克隆（带上 Token 才能通过）
             rm -rf risk_management_enterprise
-            git clone https://github.com/fincflow/risk_management_enterprise.git
+            git clone https://x-access-token:$MY_TOKEN@github.com/fincflow/risk_management_enterprise.git
             cd risk_management_enterprise
             
-            # 4. 强制无干扰模式安装
-            # 使用 -y 自动确认，-o 选项强制保留旧配置，不弹窗询问
+            # 5. 安装依赖（现在 needrestart 没了，这一步会飞快）
             sudo apt-get update
-            sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" python3-fastapi python3-uvicorn
+            sudo apt-get install -y python3-fastapi python3-uvicorn
             
-            # 5. 启动服务
+            # 6. 彻底重启服务
             pkill -f uvicorn || true
+            # 加上 nohup 和 & 让它在后台稳稳运行
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > log.txt 2>&1 &
             
-            echo "DEPLOY_COMPLETE"
+            # 7. 打印标志，证明跑到了最后一行
+            echo "DEPLOY_SUCCESSFUL"
